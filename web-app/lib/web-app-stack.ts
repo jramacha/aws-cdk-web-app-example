@@ -17,15 +17,25 @@ export class WebAppStack extends Stack {
 
     const vpc = new ec2.Vpc(this, 'MyVPC')
 
-    const asg = new autoscaling.AutoScalingGroup(this, 'MyASG', {
+    const securityGroup = new ec2.SecurityGroup(this, 'InstanceSecurityGroup', {
       vpc: vpc,
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
-      machineImage: ec2.MachineImage.latestAmazonLinux({ generation: ec2.AmazonLinuxGeneration.AMAZON_LINUX_2022 }),
-      vpcSubnets: vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_NAT }),
-      minCapacity: 2
+      allowAllOutbound: true
     })
 
-    asg.addUserData(fs.readFileSync('scripts/install.sh', 'utf8'))
+    const launchTemplate = new ec2.LaunchTemplate(this, 'MyLaunchTemplate', {
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      userData: ec2.UserData.custom(fs.readFileSync('scripts/install.sh', 'utf8')),
+      securityGroup: securityGroup,
+      requireImdsv2: true
+    })
+
+    const asg = new autoscaling.AutoScalingGroup(this, 'MyASG', {
+      vpc: vpc,
+      launchTemplate: launchTemplate,
+      vpcSubnets: vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }),
+      minCapacity: 2
+    })
 
     const alb = new loadbalancing.ApplicationLoadBalancer(this, 'MyALB', {
       vpc: vpc,
