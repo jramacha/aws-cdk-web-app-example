@@ -22,10 +22,21 @@ export class WebAppStack extends Stack {
       allowAllOutbound: true
     })
 
+    const userData = ec2.UserData.forLinux()
+    userData.addCommands(fs.readFileSync('scripts/install.sh', 'utf8'))
+    
+    // Add the HTML content as a base64 encoded file
+    const htmlContent = fs.readFileSync('static/index.html', 'utf8')
+    userData.addCommands(
+      'cat > /var/www/html/index.html << \'HTMLEOF\'',
+      htmlContent,
+      'HTMLEOF'
+    )
+
     const launchTemplate = new ec2.LaunchTemplate(this, 'MyLaunchTemplate', {
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
       machineImage: ec2.MachineImage.latestAmazonLinux2023(),
-      userData: ec2.UserData.custom(fs.readFileSync('scripts/install.sh', 'utf8')),
+      userData: userData,
       securityGroup: securityGroup,
       requireImdsv2: true
     })
